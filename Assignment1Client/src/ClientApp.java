@@ -10,18 +10,22 @@ public class ClientApp {
 	// The input command stream from the server
 	String proxy;
 	int port;
-
+//Pass in the IP and port the proxy is running on....
 public ClientApp(String server, int remote_port) {
+	proxy=server;
+	port=remote_port;
 	try {
-	InetAddress server_address = InetAddress.getByName(server);
+	InetAddress proxy_address = InetAddress.getByName(proxy);
 	InetAddress local_address=InetAddress.getByName("127.0.0.1");
-	int local_port=3001;
-	System.out.println("Trying to connect to the server at address " + server_address.getHostAddress() + ":" + remote_port);
-//	connection = new Socket(proxy, port);
-	connection = new Socket(server_address.getHostAddress(), remote_port,local_address,local_port);	
+	SocketAddress proxy_socket_address = new InetSocketAddress(proxy_address,port);
+	SocketAddress local_socket_address = new InetSocketAddress(local_address,3001);
+	Proxy proxy = new Proxy(Proxy.Type.HTTP, proxy_socket_address);
+	connection = new Socket(proxy);
+	connection.bind(local_socket_address);
+//	connection = new Socket(server_address.getHostAddress(), remote_port,local_address,local_port);	
 	}
 	catch (Exception e) {
-		System.out.println("Could not reach server: " + e.getMessage());
+		System.out.println("Could not connect to proxy: " + e.getMessage());
 		e.printStackTrace();
 		System.exit(0);
 	}
@@ -31,40 +35,44 @@ public ClientApp(String server, int remote_port) {
 public void sendCommand(String text) {
 	try {
 		OutputStreamWriter toServer = new OutputStreamWriter (connection.getOutputStream());
-		byte[] b = text.getBytes();
-		int c=0;
-		for(int i=0; i<b.length;i++){
-			c=b[i];	
-			toServer.write(text, 0, text.length());
-			toServer.flush();
-		}
-//		c=4;
-//		toServer.write(c);
-//		toServer.flush();
+		toServer.write(text.length());
+		toServer.write(text);
+		toServer.flush();
 	}catch (Exception e) {
-		System.out.println("Could not send a request to the server: " + e.getMessage());
+		System.out.println("Could not send message to the server: " + e.getMessage());
 		e.printStackTrace();
 		return;
 	}
 }
 
 public String waitForResponse() throws IOException {
-		BufferedReader fromServer = new BufferedReader (new InputStreamReader (connection.getInputStream()));
-		String result = "";	
+		DataInputStream fromServer = new DataInputStream(connection.getInputStream());
+		String message = "";	
 		byte[] b = null;
 		int temp = 0;
-		//this.setDestination(in);
 		System.out.println("Listening for commands");
-		while(true){
-			temp=fromServer.read();
-			if(temp==4){
-				break;
-			}
-			System.out.println(temp);
-			result+=(char)temp;
-		}
+		temp=fromServer.readByte();
+		System.out.println(temp);
+		byte[] bytes=new byte[temp];
+		fromServer.readFully(bytes);
+		message = new String(bytes);
 		fromServer.close();
-		return result;
+		return message;
+}
+
+public boolean connectToDestination(String address, int remote_port){
+	try {
+	InetSocketAddress remote_address = new InetSocketAddress("server.example.org", remote_port);
+	System.out.println("Trying to connect to the server at address " + address + ":" + remote_port);
+	connection.connect(remote_address);
+	}catch (Exception e) {
+		System.out.println("Could not establish connect to resource: " + e.getMessage());
+		e.printStackTrace();
+		return false;
+//		System.exit(0);
+	}
+	System.out.println("Connection to resource established");
+	return true;
 }
 public synchronized void endSession() {
 	System.out.println("Closing session with server at address " + proxy);

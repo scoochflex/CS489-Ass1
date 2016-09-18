@@ -1,6 +1,7 @@
 import java.net.*;
 import java.io.*;
 import java.lang.*;
+import java.util.regex.*;
 
 class InvalidPortNumberException extends Exception{
 	public InvalidPortNumberException (String message){
@@ -64,7 +65,7 @@ public class ServerApp {
 	public void listen() throws IOException{
 		Boolean session=false;
 		Boolean waitForClients=true;
-		while(waitForClients){
+		while(waitForClients) {
 		System.out.println("Waiting for incoming clients");
 		Boolean destExpected=false;
 		Socket clientReq = clientConnect.accept();
@@ -74,8 +75,8 @@ public class ServerApp {
 		DataOutputStream clientOut = new DataOutputStream(clientReq.getOutputStream());
 		DataInputStream destIn;
 		DataOutputStream destOut;
-		String result = "";	
-		byte[] b = null;
+		byte[] b;
+		String message = "";	
 		int temp = 0;
 		session=true;
 		//Session with client
@@ -84,22 +85,26 @@ public class ServerApp {
 			//Listen for input from client
 				while(true){
 					temp=clientIn.readByte();
-					if(temp==0){
+					System.out.println(temp);
+					byte[] bytes=new byte[temp];
+					clientIn.readFully(bytes);
+					message = new String(bytes);
+					if(temp!=0){
+						temp=0;
 						break;
 					}
-					//debug
-					//System.out.println(temp);
-					result+=(char)temp;
 				}
-				System.out.println("Command received: ");
-				System.out.println(result);
-				if(destExpected){
-					this.destination=result;
-					destExpected=false;
+				System.out.print("Command received: ");
+				System.out.println(message);
+				String [] components = message.split(("\\s+"));
+				
+				for(int i = 0; i<components.length;i++){
+					System.out.println(components[i]);					
 				}
-				switch(result){
-					case("change destination"):
-					case("Change Destination"):{
+				
+				String request_type = components[0];
+				switch(request_type){
+					case("GET"):{
 						b="ready".getBytes();
 						temp=0;
 						destExpected=true;
@@ -111,38 +116,8 @@ public class ServerApp {
 						temp=4;
 						clientOut.write(temp);
 						clientOut.flush();
-						result="";
-					}break;
-					case("end transmission"):
-					case("End Transmission"):{
-			        clientConnect.close();
-					clientIn.close();
-					clientOut.close();
-					session=false;
-					result="";
-					}break;
-					case("shutdown"):
-					case("Shutdown"):{
-			        clientConnect.close();
-					clientIn.close();
-					clientOut.close();
-					session=false;
-					waitForClients=false;
-					result="";
-					}break;
-					case("session"):
-					case("Session"):{
-						System.out.println("Got this far...");
-						URL destURL = new URL(destination);
-				        URLConnection yc = destURL.openConnection();
-						System.out.println("Got a little further...");
-				        destIn = new DataInputStream(yc.getInputStream());
-				        String inputLine;
-				        while ((inputLine = destIn.readLine()) != null) 
-				            System.out.println(inputLine);
-						System.out.println("Finished!");
-						result="";
-					}break;
+						message="";
+					}
 					default:
 						continue;
 				}

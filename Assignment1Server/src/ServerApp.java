@@ -35,31 +35,30 @@ public class ServerApp {
 	}
 
 	public static void main(String args[]) {
-		int arg1 = 3000;
-		if (args.length == 1) {
-			try {
-				arg1 = Integer.parseInt(args[0]);
-				ServerApp server = new ServerApp(arg1);
-				System.out.println("SimpleServer running on port" + arg1);
-				server.listen();
-			} catch (InvalidPortNumberException e) {
-				System.out.println(e.getMessage());
-				e.printStackTrace();
-				System.exit(0);
-			}catch (IOException e){
-				//System.out.println("Stream was closed before it could be read" + e.getMessage());
-				System.out.println(e.getMessage());
-				e.printStackTrace();
-				System.exit(0);
+		int arg1 = 3000;		
+		try {
+			if (args.length == 1) {
+			arg1 = Integer.parseInt(args[0]);
 			}
-			catch (Exception e) {
-				//System.out.println("Invalid port number. A valid port is between 1 and 65535" + e.getMessage());
-				System.out.println(e.getMessage());
-				e.printStackTrace();
-				System.exit(0);
-			}
+			ServerApp server = new ServerApp(arg1);
+			System.out.println("SimpleServer running on port" + arg1);
+			server.listen();
+		} catch (InvalidPortNumberException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}catch (IOException e){
+			//System.out.println("Stream was closed before it could be read" + e.getMessage());
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
 		}
-		
+		catch (Exception e) {
+			//System.out.println("Invalid port number. A valid port is between 1 and 65535" + e.getMessage());
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}			
 	}
 
 	public void listen() throws IOException{

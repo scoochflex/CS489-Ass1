@@ -1,12 +1,8 @@
 import java.net.*;
 import java.io.*;
+import java.util.*;
 import java.lang.*;
-
-class InvalidPortNumberException extends Exception{
-	public InvalidPortNumberException (String message){
-		super(message);
-	}
-}
+import java.util.regex.*;
 
 public class ServerApp {
 	// Default port to listen to for incoming clients
@@ -14,10 +10,13 @@ public class ServerApp {
 	Socket destConnect;
 	String destination;
 	int port = 3000;
+	//Max size of a message, 10 000 characters (bytes) long
+	int MaxMsg = 10000;
 
-	public ServerApp(int n) throws InvalidPortNumberException{
+	public ServerApp(int n){
 		if (n < 1 && n > 65535) {
-			throw new InvalidPortNumberException("Invalid port number. A valid port is between 1 and 65535");
+			System.out.println("Port specified is not valid, using default: " + port);
+			n=port;
 		}
 		this.port=n;
 		// Try making a ServerSocket to the given port
@@ -34,37 +33,32 @@ public class ServerApp {
 	}
 
 	public static void main(String args[]) {
-		int arg1 = 3000;
-		if (args.length == 1) {
-			try {
-				arg1 = Integer.parseInt(args[0]);
-				ServerApp server = new ServerApp(arg1);
-				System.out.println("SimpleServer running on port" + arg1);
-				server.listen();
-			} catch (InvalidPortNumberException e) {
-				System.out.println(e.getMessage());
-				e.printStackTrace();
-				System.exit(0);
-			}catch (IOException e){
-				//System.out.println("Stream was closed before it could be read" + e.getMessage());
-				System.out.println(e.getMessage());
-				e.printStackTrace();
-				System.exit(0);
+		int arg1 = 3004;		
+		try {
+			if (args.length == 1) {
+			arg1 = Integer.parseInt(args[0]);
 			}
-			catch (Exception e) {
-				//System.out.println("Invalid port number. A valid port is between 1 and 65535" + e.getMessage());
-				System.out.println(e.getMessage());
-				e.printStackTrace();
-				System.exit(0);
-			}
+			ServerApp server = new ServerApp(arg1);
+			System.out.println("SimpleServer running on port" + arg1);
+			server.listen();
+		} catch (IOException e){
+			//System.out.println("Stream was closed before it could be read" + e.getMessage());
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
 		}
-		
+		catch (Exception e) {
+			//System.out.println("Invalid port number. A valid port is between 1 and 65535" + e.getMessage());
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			System.exit(0);
+		}			
 	}
 
 	public void listen() throws IOException{
 		Boolean session=false;
 		Boolean waitForClients=true;
-		while(waitForClients){
+		while(waitForClients) {
 		System.out.println("Waiting for incoming clients");
 		Boolean destExpected=false;
 		Socket clientReq = clientConnect.accept();
@@ -74,32 +68,45 @@ public class ServerApp {
 		DataOutputStream clientOut = new DataOutputStream(clientReq.getOutputStream());
 		DataInputStream destIn;
 		DataOutputStream destOut;
-		String result = "";	
-		byte[] b = null;
-		int temp = 0;
+		byte[] b;
+		String message = "";	
+		byte temp = 0;
 		session=true;
+		List<String> letters = new ArrayList<String>();
 		//Session with client
 		while (session) {
 			System.out.println("Listening for commands");
 			//Listen for input from client
 				while(true){
-					temp=clientIn.read();
-					if(temp==4){
-						break;
+					temp=clientIn.readByte();
+					System.out.println(temp);		
+					if(temp==10){
+						temp=clientIn.readByte();
+						if(temp==13){
+							temp=clientIn.readByte();
+							if(temp==10){
+								break;
+							}
+						}
 					}
-					//debug
-					//System.out.println(temp);
-					result+=(char)temp;
+					String first_char=String.valueOf((char)temp);
+					System.out.println(first_char);
+//					first_char.concat(message);
+					letters.add(first_char);
 				}
-				System.out.println("Command received: ");
-				System.out.println(result);
-				if(destExpected){
-					this.destination=result;
-					destExpected=false;
+				System.out.println(letters);
+
+				System.out.print("Command received: ");
+				System.out.println(message);
+				String [] components = message.split(("\\s+"));
+				
+				for(int i = 0; i<components.length;i++){
+					System.out.println(components[i]);					
 				}
-				switch(result){
-					case("change destination"):
-					case("Change Destination"):{
+				
+				String request_type = components[0];
+				switch(request_type){
+					case("GET"):{
 						b="ready".getBytes();
 						temp=0;
 						destExpected=true;
@@ -111,38 +118,13 @@ public class ServerApp {
 						temp=4;
 						clientOut.write(temp);
 						clientOut.flush();
-						result="";
-					}break;
-					case("end transmission"):
-					case("End Transmission"):{
-			        clientConnect.close();
-					clientIn.close();
-					clientOut.close();
-					session=false;
-					result="";
-					}break;
-					case("shutdown"):
-					case("Shutdown"):{
-			        clientConnect.close();
-					clientIn.close();
-					clientOut.close();
-					session=false;
-					waitForClients=false;
-					result="";
-					}break;
-					case("session"):
-					case("Session"):{
-						System.out.println("Got this far...");
-						URL destURL = new URL(destination);
-				        URLConnection yc = destURL.openConnection();
-						System.out.println("Got a little further...");
-				        destIn = new DataInputStream(yc.getInputStream());
-				        String inputLine;
-				        while ((inputLine = destIn.readLine()) != null) 
-				            System.out.println(inputLine);
-						System.out.println("Finished!");
-						result="";
-					}break;
+						message="";
+					}
+					break;
+					case("CONNECT"):{
+						System.out.println("Got to connect!");
+					}
+					break;
 					default:
 						continue;
 				}

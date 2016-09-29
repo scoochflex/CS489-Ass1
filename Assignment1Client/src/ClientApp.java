@@ -62,7 +62,7 @@ public String waitForResponse() throws IOException {
 
 public boolean connectToDestination(String address, int remote_port){
 	try {
-	InetSocketAddress remote_address = new InetSocketAddress("server.example.org", remote_port);
+	InetSocketAddress remote_address = new InetSocketAddress(address, remote_port);
 	System.out.println("Trying to connect to the server at address " + address + ":" + remote_port);
 	connection.connect(remote_address);
 	}catch (Exception e) {

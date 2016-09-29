@@ -11,27 +11,28 @@ public class ClientAppInterface {
 		//Default value for host
 		String host = "127.0.0.1";
 		//Default value for port
-		int port = 3002;
+		int port = 8118;
 		//arguments are provided using a space as a delimiter	
 		//ensure that there are only 2 arguments before attempting to establish a connection to the specified server and port
 		if (args.length < 2 ) {
 			System.out.println("No address for the proxy server and a port were provided, default values will be used.");
 			System.out.println("You can specify a proxy server address by supplying it as the first argument, you can also supply the desired port if you know iot by passing it in afterwords.");
+		}else{
+			//First argument passed in is the host
+			host=args[0];
+			//Try to parse the second argument as an integer
+			try {
+				//Second argument passed in is (should be) the port number
+				port = Integer.parseInt(args[1]);
+				}
+				catch (Exception e) {
+					System.out.println("Port specified is not valid: " + e.getMessage());
+					e.printStackTrace();
+					System.out.println("Using default value of : " + port + " instead");
+				}
 		}		
 //		String destination = "https://www.google.ca/";
 //		String destination = "http://www.w3.org/pub/WWW/";
-		//First argument passed in is the host
-		host=args[0];
-		//Try to parse the second argument as an integer
-		try {
-			//Second argument passed in is (should be) the port number
-			port = Integer.parseInt(args[1]);
-			}
-			catch (Exception e) {
-				System.out.println("Port specified is not valid: " + e.getMessage());
-				e.printStackTrace();
-				System.out.println("Using default value of : " + port + " instead");
-			}
 		
 		ClientApp client = new ClientApp(host, port);
 		String request="";

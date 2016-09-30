@@ -29,10 +29,10 @@ public ClientApp(String server, int remote_port) {
 		e.printStackTrace();
 		System.exit(0);
 	}
-	System.out.println("Connected to server established");
+	System.out.println("Connection to server established");
 }
 // GET http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1
-public void sendCommand(String text) {
+public void sendCommand(String text) { 
 	try {
 		OutputStreamWriter toServer = new OutputStreamWriter (connection.getOutputStream());
 		toServer.write(text.length());

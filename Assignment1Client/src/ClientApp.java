@@ -44,7 +44,6 @@ public void sendCommand(String text) {
 		return;
 	}
 }
-
 public String waitForResponse() throws IOException {
 		DataInputStream fromServer = new DataInputStream(connection.getInputStream());
 		String message = "";	

@@ -11,7 +11,7 @@ public class ClientAppInterface {
 		//Default value for host
 		String host = "127.0.0.1";
 		//Default value for port
-		int port = 8118;
+		int port = 3000;
 		//arguments are provided using a space as a delimiter	
 		//ensure that there are only 2 arguments before attempting to establish a connection to the specified server and port
 		if (args.length < 2 ) {
@@ -33,7 +33,7 @@ public class ClientAppInterface {
 		}		
 //		String destination = "https://www.google.ca/";
 //		String destination = "http://www.w3.org/pub/WWW/";
-		
+		System.out.println("Starting up client on port 3000, trying to connect to proxy on port: " + port);
 		ClientApp client = new ClientApp(host, port);
 		String request="";
 		String response="";
@@ -57,7 +57,13 @@ public class ClientAppInterface {
 			case "destination":{
 				System.out.println("Please enter the address of the server you would like to communicate with: ");
 				request=cmd.nextLine();
-				client.connectToDestination(request,3000);
+				
+				String destString = request.substring(0,request.lastIndexOf(":"));
+				
+				int destPort = Integer.parseInt(request.substring(request.lastIndexOf(":")+1,request.length()));
+				
+				System.out.println("Destination determined to be: " + destString + " : " + destPort);
+				client.connectToDestination(destString ,destPort);
 				response=client.waitForResponse();
 				System.out.println(response);
 				if(response.equals("ready")){

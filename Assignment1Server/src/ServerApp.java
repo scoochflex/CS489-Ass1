@@ -14,7 +14,7 @@ public class ServerApp {
 	ServerSocket clientConnect;
 	Socket destConnect;
 	String destination;
-	int port = 3000;
+	int port = 3002;
 
 	public ServerApp(int n) throws InvalidPortNumberException{
 		if (n < 1 && n > 65535) {
@@ -61,67 +61,55 @@ public class ServerApp {
 		}			
 	}
 
-	public void listen() throws IOException{
+	public void listen() throws IOException {
 		Boolean session=false;
 		Boolean waitForClients=true;
 		while(waitForClients) {
 		System.out.println("Waiting for incoming clients");
-		Boolean destExpected=false;
 		Socket clientReq = clientConnect.accept();
-		Socket destReq;
 		System.out.println("A client has connected");
 		DataInputStream clientIn = new DataInputStream(clientReq.getInputStream());
-		DataOutputStream clientOut = new DataOutputStream(clientReq.getOutputStream());
-		DataInputStream destIn;
-		DataOutputStream destOut;
+		OutputStreamWriter clientOut = new OutputStreamWriter(clientReq.getOutputStream());
 		byte[] b;
 		String message = "";	
-		int temp = 0;
 		session=true;
 		//Session with client
 		while (session) {
 			System.out.println("Listening for commands");
 			//Listen for input from client
-				while(true){
-					temp=clientIn.readByte();
-					System.out.println(temp);
-					byte[] bytes=new byte[temp];
-					clientIn.readFully(bytes);
-					message = new String(bytes);
-					if(temp!=0){
-						temp=0;
-						break;
+			while (session) {
+//				System.out.println("Listening for commands");
+				// Listen for input from server
+				int byteEst = 0;
+				byteEst = clientIn.available();
+				while (byteEst != 0) {
+					System.out.println("Bytes to be read: " + byteEst);
+					b = new byte[byteEst];
+					clientIn.readFully(b, 0, byteEst);
+					for(int i =0; i<b.length;i++){
+						String first_char = String.valueOf((char) b[i]);
+						message += first_char;
 					}
+					byteEst = clientIn.available();
 				}
-				System.out.print("Command received: ");
-				System.out.println(message);
-				String [] components = message.split(("\\s+"));
-				
-				for(int i = 0; i<components.length;i++){
-					System.out.println(components[i]);					
-				}
-				
-				String request_type = components[0];
-				switch(request_type){
-					case("GET"):{
-						b="ready".getBytes();
-						temp=0;
-						destExpected=true;
-						for(int i=0; i<b.length;i++){
-							temp=b[i];	
-							clientOut.write(temp);
-							clientOut.flush();
-						}
-						temp=4;
-						clientOut.write(temp);
+				if(!message.isEmpty()){
+					System.out.print("Command received: ");
+					System.out.println(message);
+					String response = "I AM A REPLY MESSAGE";
+					try {
+						clientOut.write(response.length());
+						clientOut.write(response);
 						clientOut.flush();
-						message="";
+					} catch (Exception e) {
+						System.out.println("Could not send message to the server: " + e.getMessage());
+						e.printStackTrace();
+						return;
 					}
-					default:
-						continue;
+				}		
+				message="";				
 				}
-            }
-		}
+			}
+		}	
 	}
 
 	/*public void setDestination(DataInputStream in) throws IOException {

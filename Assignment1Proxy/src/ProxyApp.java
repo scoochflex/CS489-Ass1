@@ -1,4 +1,5 @@
 import java.net.*;
+import java.nio.ByteOrder;
 import java.io.*;
 import java.util.*;
 import java.lang.*;
@@ -7,9 +8,9 @@ import java.util.regex.*;
 public class ProxyApp {
 	// Default port to listen to for incoming clients
 	ServerSocket clientConnect;
-	protected static Socket destConnect;
-	String destination = "NULL";
-	int port = 3000;
+	Socket destConnect;
+	String destination = "";
+	int port;
 	// Max size of a message, 10 000 characters (bytes) long
 	int MaxMsg = 10000;
 	// List of messages (not yet dealt with) sent by client
@@ -19,70 +20,63 @@ public class ProxyApp {
 
 	// As currently only one server connection is supported, this server
 	// connection handler only waits on a destination name before starting
-	//up and forwarding out messages to the intended server	
+	// up and forwarding out messages to the intended server	
 	public class ServerConnectionHandler implements Runnable {
 
 		public void run() {
 			Boolean session = false;
-			Boolean waitForClients = true;
 			String currentDestination = "";
 			
-			while(currentDestination.equalsIgnoreCase("")){
+			while(currentDestination.isEmpty()){
 				currentDestination=getDestination();
 			}
-			System.out.println("Current dest after: "+currentDestination);
+			
+			System.out.println("(Server Thread) Current dest after: " + currentDestination);
 			
 //			while () {
 				try {
 					// Split destination into hostname and port
-					String[] destInfo = currentDestination.split("\\:");
-					System.out.println("Destination determined to be: " + destInfo[0]);
+					// Assign hostname and port to local variables to avoid too
+					// many array accesses					
+					String destString = "";
 					// Assign hostname and port to local variables to avoid too
 					// many array accesses
-					String destString = destInfo[0];
-					int destPort = Integer.parseInt(destInfo[1]);
+					destString = currentDestination.substring(0,currentDestination.lastIndexOf(":"));
+					
+					int destPort = Integer.parseInt(currentDestination.substring(currentDestination.lastIndexOf(":")+1,currentDestination.length()));
+					
 
 					InetAddress local_address = InetAddress.getByName("127.0.0.1");
+					InetAddress remote_address = InetAddress.getByName(destString);
+					System.out.println("(Server Thread) Destination determined to be: " + destString + " : " + destPort + " remote_address: " + remote_address.toString());
 
-					destConnect = new Socket(destString, destPort, local_address, 3006);
+					destConnect = new Socket(remote_address, destPort, local_address, 3002);
+//					destConnect = new Socket("http://httpbin.org", 80, local_address, 3002);
 
 					DataInputStream destIn = new DataInputStream(destConnect.getInputStream());
 					OutputStreamWriter destOut = new OutputStreamWriter(destConnect.getOutputStream());
 					byte[] b;
 					String message = "";
-					byte temp = 0;
 					session = true;
 					// Session with client
 					while (session) {
-						System.out.println("Listening for commands");
 						// Listen for input from server
-						int byteEst = destIn.available();
-						System.out.println("Bytes to be read: "+byteEst);
+						int byteEst = 0;
+						byteEst = destIn.available();
 						while (byteEst != 0) {
-							temp = destIn.readByte();
-							System.out.println(temp);
-							if (temp == 10) {
-								temp = destIn.readByte();
-								if (temp == 13) {
-									temp = destIn.readByte();
-									if (temp == 10) {
-										System.out.print("Response received: ");
-										System.out.println(message);
-										// Add message to list of messages that
-										// are to go to the client
-										addMessageToList(message);
-										break;
-									}
-								}
+							b = new byte[byteEst];
+							destIn.readFully(b, 0, byteEst);
+							for(int i =0; i<b.length;i++){
+								String first_char = String.valueOf((char) b[i]);
+								message += first_char;
 							}
-							String first_char = String.valueOf((char) temp);
-							System.out.println(first_char);
-							message += first_char;
+							byteEst = destIn.available();
 						}
+						System.out.println("(Server Thread) Message receieved: " + message);
 						String messageToSend = removeTopMessage();
 						while (messageToSend != "") {
+							System.out.println("(Server Thread) There is a message waiting to be sent: " + messageToSend);
 							try {
-								destOut.write(messageToSend.length());
 								destOut.write(messageToSend);
 								destOut.flush();
 							} catch (Exception e) {
@@ -96,6 +90,7 @@ public class ProxyApp {
 
 				} catch (Exception e) {
 					e.printStackTrace();
+					System.exit(0);
 				}
 //			}
 		}
@@ -109,11 +104,12 @@ public class ProxyApp {
 		}
 
 		public synchronized String getDestination() {
-			return destination;
-		}
-
-		public synchronized List<String> getNumberMessages() {
-			return new ArrayList<String>();
+			if(destination.isEmpty()){
+				return "";
+			}else{	
+				System.out.println("Dest is: Set!");
+				return destination;
+			}
 		}
 
 		public synchronized void addMessageToList(String message) {
@@ -128,69 +124,81 @@ public class ProxyApp {
 			Boolean waitForClients = true;
 			while (waitForClients) {
 				try {
-					System.out.println("Waiting for incoming clients");
+					System.out.println("(Client Thread) Waiting for incoming clients...");
 					Socket clientReq = clientConnect.accept();
-					System.out.println("A client has connected");
+					System.out.println("(Client Thread) A client has connected");
 					DataInputStream clientIn = new DataInputStream(clientReq.getInputStream());
-					DataOutputStream clientOut = new DataOutputStream(clientReq.getOutputStream());
-					byte[] b;
+					OutputStreamWriter clientOut = new OutputStreamWriter(clientReq.getOutputStream());
 					String message = "";
-					byte temp = 0;
+					byte [] b = null;
 					session = true;
 					// Session with client
 					while (session) {
-						System.out.println("Listening for commands");
-						// Listen for input from client
-						while (true) {
-							temp = clientIn.readByte();
-							System.out.println(temp);
-							if (temp == 10) {
-								temp = clientIn.readByte();
-								if (temp == 13) {
-									temp = clientIn.readByte();
-									if (temp == 10) {
-										break;
-									}
-								}
+//						System.out.println("Listening for commands");
+						// Listen for input from server
+						int byteEst = 0;
+						byteEst = clientIn.available();
+						while (byteEst != 0) {
+							b = new byte[byteEst];
+							clientIn.readFully(b, 0, byteEst);
+							for(int i =0; i<b.length;i++){
+								String first_char = String.valueOf((char) b[i]);
+								message += first_char;
 							}
-							String first_char = String.valueOf((char) temp);
-							System.out.println(first_char);
-							// first_char.concat(message);
-							message += first_char;
+							byteEst = clientIn.available();
 						}
-						System.out.print("Command received: ");
-						System.out.println(message);
+						System.out.println("(Client Thread) Message receieved: " + message);
 						String[] components = message.split("\\s+");
 
-						for (int i = 0; i < components.length; i++) {
-							System.out.println(components[i]);
-						}
-
 						String request_type = components[0];
-						switch (request_type) {
-						case ("GET"): {
-							b = "ready".getBytes();
-							temp = 0;
-							for (int i = 0; i < b.length; i++) {
-								temp = b[i];
-								clientOut.write(temp);
-								clientOut.flush();
+						
+						if(request_type.equalsIgnoreCase("CONNECT")){
+							if(!destinationEqualityCheck(components[1])){
+								System.out.println("(Client Thread) Got to connect! Setting dest to Components[1] : " + components[1]);
+								setDestination(components[1]);
 							}
-							temp = 4;
-							clientOut.write(temp);
-							clientOut.flush();
+							addMessageToList(message);
+						}else{
+							addMessageToList(message);
 						}
-							break;
-						case ("CONNECT"): {
-							System.out.println("Got to connect! Components[1] " + components[1]);
-							setDestination(components[1]);
+						
+						String messageToSend = removeTopMessage();
+						while (messageToSend != "") {
+							System.out.println("(Client Thread) There is a message to be sent to the client : " + messageToSend);
+							try {
+								clientOut.write(messageToSend);
+								clientOut.flush();
+							} catch (Exception e) {
+								System.out.println("Could not send message to the server: " + e.getMessage());
+								e.printStackTrace();
+								return;
+							}
+							messageToSend = removeTopMessage();
 						}
-							break;
-						default:
-							continue;
-						}
+//						switch (request_type) {
+//						case ("GET"): {
+//							b = "ready".getBytes();
+//							temp = 0;
+//							for (int i = 0; i < b.length; i++) {
+//								temp = b[i];
+//								clientOut.write(temp);
+//								clientOut.flush();
+//							}
+//							temp = 4;
+//							clientOut.write(temp);
+//							clientOut.flush();
+//						}
+//							break;
+//						case ("CONNECT"): {
+//							System.out.println("Got to connect! Components[1] " + components[1]);
+//							setDestination(components[1]);
+//						}
+//							break;
+//						default:
+//							continue;
+//						}
 					}
-					// End of Try
+				// End of Try
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -200,6 +208,23 @@ public class ProxyApp {
 		public synchronized void setDestination(String dest) {
 			destination = dest;
 		}
+		
+		public synchronized boolean destinationEqualityCheck(String check){
+			return check.equalsIgnoreCase(destination);
+		}
+		
+		public synchronized String removeTopMessage() {
+			if (messagesToClient.isEmpty()) {
+				return "";
+			} else {
+				return messagesToClient.remove(0);
+			}
+		}
+
+		public synchronized void addMessageToList(String message) {
+			messagesFromClient.add(message);
+		}	
+
 	}
 
 	//The proxy app starts up the main process that will spawn the ClientConnectionHandler and ServerConnectionHandler
@@ -216,13 +241,13 @@ public class ProxyApp {
 			e.printStackTrace();
 			System.exit(0);
 		} // No errors, assume binding of server-app to port was successful
-		System.out.println("Proxy initalized ServerSocket app listening for incoming clients on port: " + n);
+		System.out.println("Proxy initalized, ServerSocket clientConnect listening for incoming clients on port: " + n);
 		this.port = n;
 	}
 
 	public static void main(String args[]) {
 		//default port value
-		int defPort = 3004;
+		int defPort = 3001;
 		//Initalization for port value passed in
 		int arg1=0;
 		try {
@@ -248,7 +273,6 @@ public class ProxyApp {
 			ServerConnectionHandler serverHandeler = proxy.new ServerConnectionHandler();
 			Thread serverThread = new Thread(serverHandeler);
 			serverThread.start();
-			System.out.println("Proxy waiting for clients on port" + arg1);
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 			e.printStackTrace();

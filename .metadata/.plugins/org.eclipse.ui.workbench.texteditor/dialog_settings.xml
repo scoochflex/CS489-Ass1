@@ -2,17 +2,17 @@
 <section name="Workbench">
 	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
 		<item value="false" key="isRegEx"/>
-		<item value="server" key="selection"/>
+		<item value="client" key="selection"/>
 		<item value="false" key="casesensitive"/>
 		<item value="false" key="incremental"/>
 		<item value="true" key="wrap"/>
 		<item value="false" key="wholeword"/>
 		<list key="findhistory">
+			<item value="Client"/>
 			<item value="server"/>
 			<item value="(Server Thread) M"/>
 			<item value="Server"/>
 			<item value="Socket"/>
-			<item value="Client"/>
 			<item value="SocketException"/>
 			<item value="java.net.SocketException: Network is unreachable"/>
 			<item value="java.net.SocketException: Network is unreachable: connect"/>

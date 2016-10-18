@@ -46,20 +46,23 @@ public class ProxyApp {
 					int destPort = Integer.parseInt(currentDestination.substring(currentDestination.lastIndexOf(":")+1,currentDestination.length()));
 					
 
-					InetAddress local_address = InetAddress.getByName("127.0.0.1");
-					InetAddress remote_address = InetAddress.getByName(destString);
-					System.out.println("(Server Thread) Destination determined to be: " + destString + " : " + destPort + " remote_address: " + remote_address.toString());
-
-					destConnect = new Socket(remote_address, destPort, local_address, 3002);
+//					InetAddress local_address = InetAddress.getByName("127.0.0.1");
+//					InetAddress remote_address = InetAddress.getByName(destString);
+					System.out.println("(Server Thread) Destination determined to be: " + destString + " : " + destPort);
+					
+					URL serverUrl = new URL(destString);
+			        URLConnection serverConnection = serverUrl.openConnection();
+			        serverConnection.setDoOutput(true);
+//					destConnect = new Socket(remote_address, destPort, local_address, 3002);
 //					destConnect = new Socket("http://httpbin.org", 80, local_address, 3002);
+					DataInputStream destIn = new DataInputStream(serverConnection.getInputStream());
 
-					DataInputStream destIn = new DataInputStream(destConnect.getInputStream());
-					OutputStreamWriter destOut = new OutputStreamWriter(destConnect.getOutputStream());
 					byte[] b;
 					String message = "";
 					session = true;
 					// Session with client
 					while (session) {
+
 						// Listen for input from server
 						int byteEst = 0;
 						byteEst = destIn.available();
@@ -72,21 +75,28 @@ public class ProxyApp {
 							}
 							byteEst = destIn.available();
 						}
+						if(!message.isEmpty()){
 						System.out.println("(Server Thread) Message receieved: " + message);
-						String messageToSend = removeTopMessage();
-						while (messageToSend != "") {
-							System.out.println("(Server Thread) There is a message waiting to be sent: " + messageToSend);
-							try {
-								destOut.write(messageToSend);
-								destOut.flush();
-							} catch (Exception e) {
-								System.out.println("Could not send message to the server: " + e.getMessage());
-								e.printStackTrace();
-								return;
-							}
-							messageToSend = removeTopMessage();
+						addMessageToList(message);
 						}
+						message="";
+//						OutputStreamWriter destOut = new OutputStreamWriter(serverConnection.getOutputStream());
+//						String messageToSend = removeTopMessage();
+//						while (messageToSend != "") {
+//							System.out.println("(Server Thread) There is a message waiting to be sent: " + messageToSend);
+//							try {
+//								destOut.write(messageToSend);
+//								destOut.flush();
+//							} catch (Exception e) {
+//								System.out.println("Could not send message to the server: " + e.getMessage());
+//								e.printStackTrace();
+//								return;
+//							}
+//							messageToSend = removeTopMessage();
+//						}
+//						destOut.close();
 					}
+					destIn.close();
 
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -147,19 +157,23 @@ public class ProxyApp {
 							}
 							byteEst = clientIn.available();
 						}
-						System.out.println("(Client Thread) Message receieved: " + message);
-						String[] components = message.split("\\s+");
-
-						String request_type = components[0];
 						
-						if(request_type.equalsIgnoreCase("CONNECT")){
-							if(!destinationEqualityCheck(components[1])){
-								System.out.println("(Client Thread) Got to connect! Setting dest to Components[1] : " + components[1]);
-								setDestination(components[1]);
+						if(!message.isEmpty()){
+							System.out.println("(Client Thread) Message receieved: " + message);
+							String[] components = message.split("\\s+");
+
+							String request_type = components[0];
+							
+							if(request_type.equalsIgnoreCase("CONNECT")){
+								if(!destinationEqualityCheck(components[1])){
+									System.out.println("(Client Thread) Got to connect! Setting dest to Components[1] : " + components[1]);
+									setDestination(components[1]);
+								}
+								addMessageToList(message);
+							}else{
+								addMessageToList(message);
 							}
-							addMessageToList(message);
-						}else{
-							addMessageToList(message);
+							message="";
 						}
 						
 						String messageToSend = removeTopMessage();

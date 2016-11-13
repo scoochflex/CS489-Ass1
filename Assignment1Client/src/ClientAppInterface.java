@@ -38,64 +38,75 @@ public class ClientAppInterface {
 		String request="";
 		String response="";
 		Scanner cmd = new Scanner(System.in);
-		System.out.println("Please enter a command, type help for a list of valid commands.");
+		System.out.println("Please enter the address of the server you would like to communicate with, type exit to close the application: ");
 		while(true){
-			System.out.println("Client> ");
 			request=cmd.nextLine();
-			switch (request){
-			case "Send": //Send one request, and wait for one response
-			case "send":{
-				client.sendCommand("GET http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1");
-				request="";
-				}break;
-			case "Session": //Start a session with a 
-			case "session":{
-				client.sendCommand(request);
-				request="";
-				}break;
-			case "Destination": //Start a session with a destination server or address
-			case "destination":{
-				System.out.println("Please enter the address of the server you would like to communicate with: ");
-				request=cmd.nextLine();
-				
-				String destString = request.substring(0,request.lastIndexOf(":"));
-				
-				int destPort = Integer.parseInt(request.substring(request.lastIndexOf(":")+1,request.length()));
-				
-				System.out.println("Destination determined to be: " + destString + " : " + destPort);
-				client.connectToDestination(destString ,destPort);
-				response=client.waitForResponse();
-				System.out.println(response);
-				if(response.equals("ready")){
-					client.sendCommand(request);
-				}else{
-					System.out.println("Could not set destination address. Please try again.");
-				}
-				System.out.println("Destination address changed.");
-				request="";
-				}break;
-			case "Get":
-			case "get":{
-				System.out.println("Please enter what you would like to send to the specified server");
-				request=cmd.nextLine();
-				}break;
-			case "Help":
-			case "help":{
-				System.out.println("Send - sends plaintext to the address specified. Packets are routed through the proxy");
-			}break;
-			case "exit":
-			case "Exit":{
-				//Tell the proxy that the session is over 
-				client.sendCommand("End Transmission");
-				cmd.close();
-				client.endSession();
-				}break;
-			default:{
-				System.out.println("Command not understood.\nPlease type help for a list of valid commands with breif descriptions");
-				break;
-				}
-			}
+//			String destString = request.substring(0,request.lastIndexOf(":"));
+//			
+//			int destPort = Integer.parseInt(request.substring(request.lastIndexOf(":")+1,request.length()));
+//			
+//			System.out.println("Destination determined to be: " + destString);
+			boolean res = client.connectToDestination(request);
+			client.waitForResponse();
+			
+			System.out.println("Please enter the address of the server you would like to communicate with, type exit to close the application: ");
 		}
+		
+		
+		
+//		client.sendCommand("End Session");
+//		System.out.println("Please enter a command, type help for a list of valid commands.");
+//		while(true){
+//			System.out.println("Client> ");
+//			request=cmd.nextLine();
+//			switch (request){
+//			case "Send": //Send one request, and wait for one response
+//			case "send":{
+//				client.sendCommand("GET http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1");
+//				request="";
+//				}break;
+//			case "Session": //Start a session with a 
+//			case "session":{
+//				client.sendCommand(request);
+//				request="";
+//				}break;
+//			case "Destination": //Start a session with a destination server or address
+//			case "destination":{
+//				System.out.println("Please enter the address of the server you would like to communicate with: ");
+//				request=cmd.nextLine();
+//				
+//				String destString = request.substring(0,request.lastIndexOf(":"));
+//				
+//				int destPort = Integer.parseInt(request.substring(request.lastIndexOf(":")+1,request.length()));
+//				
+//				System.out.println("Destination determined to be: " + destString + " : " + destPort);
+//				boolean res = client.connectToDestination(destString ,destPort);
+//				client.waitForResponse();
+//				client.sendCommand("End Session");
+//				request="";
+//				}break;
+//			case "Get":
+//			case "get":{
+//				System.out.println("Please enter what you would like to send to the specified server");
+//				request=cmd.nextLine();
+//				}break;
+//			case "Help":
+//			case "help":{
+//				System.out.println("Send - sends plaintext to the address specified. Packets are routed through the proxy");
+//			}break;
+//			case "exit":
+//			case "Exit":{
+//				//Tell the proxy that the session is over 
+//				client.sendCommand("End Transmission");
+//				cmd.close();
+//				client.endSession();
+//				}break;
+//			default:{
+//				System.out.println("Command not understood.\nPlease type help for a list of valid commands with breif descriptions");
+//				break;
+//				}
+//			}
+//		}
 	}
 
 }

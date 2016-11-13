@@ -13,53 +13,52 @@ public class ProxyApp {
 	int port;
 	// Max size of a message, 10 000 characters (bytes) long
 	int MaxMsg = 10000;
+	
+	/*  The below List<String> data types are used to store messages
+	 *  to/from the client and server so that they can be dealt 
+	 *  with as soon as the client/server connection handler is ready.
+	 *  As messages are sent out, they are removed from these lists
+	 *  The lists are effectively ordered as queues so that messages
+	 *  are dealt with in a FIFO manner
+	 */
+	
 	// List of messages (not yet dealt with) sent by client
 	List<String> messagesFromClient = new ArrayList<String>();
 	// List of messages (not yet dealt with) received from server (destination)
 	List<String> messagesToClient = new ArrayList<String>();
 
-	// As currently only one server connection is supported, this server
+	// As  only one server connection is supported, this server
 	// connection handler only waits on a destination name before starting
 	// up and forwarding out messages to the intended server	
 	public class ServerConnectionHandler implements Runnable {
 
+		//Main run method of the server connection handler
 		public void run() {
+			//Default port to try to connect to remote resource					
+			int destPort = 80;
+			//Boolean controlling weather or not the server connection handler waits for messages from/to a specified destination
 			Boolean session = false;
+			//The current destination is empty until the client receives a GET that specifies a remote location
 			String currentDestination = "";
 			
+			//Outer loop ensuring that if a session is no longer in place it will wait for a new destination to be set before setting up a connection
 			while(true){
+			
+			//Ensures that ServerConnectionHandler will block until a destination is determined and set by ClientConnectionHandler in a thread safe manner
 			while(currentDestination.isEmpty()){
+				//Get the destination to be checked by the while
 				currentDestination=getDestination();
 			}
 
-			System.out.println("(Server Thread) Current dest after: " + currentDestination);
+			//Feedback indicating that the server is trying to connect to the destination on the default port
+			System.out.println("(Server Thread) Current destination: " + currentDestination + " the default port: " + destPort + " will be used to establish the connection.");
 			
 				try {
-					// Assign hostname and port to local variables to avoid too
-					// many array accesses
-//					destString = currentDestination.substring(currentDestination.lastIndexOf(":")+1,currentDestination.length());
-					
-//					try{
-//						destPort = Integer.parseInt(currentDestination.substring(currentDestination.lastIndexOf(":")+1,currentDestination.length()));
-//					}catch (Exception e){
-//						System.out.println(e.getMessage());
-//						System.out.println("Using default port value of: " + destPort);
-//						destString = currentDestination;
-//					}					
-//
-//					InetAddress local_address = InetAddress.getByName("127.0.0.1");
-//					InetAddress remote_address = InetAddress.getByName(destString);
-
-					String destString = currentDestination;
-					int destPort = 80;
-					System.out.println("(Server Thread) Destination determined to be: " + destString +" : "+ destPort);
-//					
-//					URL serverUrl = new URL(currentDestination);
-//			        URLConnection serverConnectionOut = serverUrl.openConnection();
-//			        serverConnectionOut.setDoOutput(true);
-
-					destConnect = new Socket(destString, destPort);
+					//Create a socket based around the desired destination and over the default port
+					destConnect = new Socket(currentDestination, destPort);
+					//Get the underlying stream writer for forwarding messages to the destination as they come in from the client
 					OutputStreamWriter destOut = new OutputStreamWriter(destConnect.getOutputStream());
+					
 					DataInputStream destIn = new DataInputStream(destConnect.getInputStream());
 					String messageToSend = removeTopMessage();
 					while (messageToSend != "") {
@@ -103,6 +102,7 @@ public class ProxyApp {
 						}
 					//while(session loop end)
 					}
+				//Try end
 				} catch (Exception e) {
 					e.printStackTrace();
 					System.out.println("(Server Thread) disconnected from server at: " + currentDestination);
@@ -110,7 +110,10 @@ public class ProxyApp {
 				//while(true) loop end
 			}
 		}
-
+		/*
+		 * Below are thread safe ways that the serverConnectionHandler  
+		 * uses to communicate with the clientConnectionHandler
+		 */
 		public synchronized String removeTopMessage() {
 			if (messagesFromClient.isEmpty()) {
 				return "";
@@ -213,50 +216,18 @@ public class ProxyApp {
 								e.printStackTrace();
 								return;
 							}
-
-//							boolean components = message.contains("OK");
-//							Pattern p = Pattern.compile(".*OK");
-//							Matcher m = p.matcher(components[0]);
-//							Matcher test = p.matcher("Hello OK");
-//							System.out.println("(Client Thread) Comp 0:  " + components[0]);
+							//An OK indicates a that a response containing the desired data has been receieved. 
+							//We will terminate gracefully when possible, and if after SO_TIMEOUT seconds we 
+							//have not been able to close the connection, we forcefully close it
 							if(messageToSend.contains("OK")){
-								System.out.println("(Client Thread) Contains ok? : " + messageToSend.contains("OK"));
 								session=false;
 								setDestination("");
 								clientReq.close();
 								session=false;
 							}
-//							}else{
-//								System.out.println("(Client Thread)No match. Test match: " + test.matches());
-//							}
 							messageToSend = removeTopMessage();
 						}
-						
-//						switch (request_type) {
-//						case ("GET"): {
-//							b = "ready".getBytes();
-//							temp = 0;
-//							for (int i = 0; i < b.length; i++) {
-//								temp = b[i];
-//								clientOut.write(temp);
-//								clientOut.flush();
-//							}
-//							temp = 4;
-//							clientOut.write(temp);
-//							clientOut.flush();
-//						}
-//							break;
-//						case ("CONNECT"): {
-//							System.out.println("Got to connect! Components[1] " + components[1]);
-//							setDestination(components[1]);
-//						}
-//							break;
-//						default:
-//							continue;
-//						}
 					}
-				// End of Try
-
 				} catch (Exception e) {
 					e.printStackTrace();
 					System.out.println("(Client Thread) Client at " + destination + " disconnected");
@@ -264,15 +235,22 @@ public class ProxyApp {
 				}
 			}
 		}
+		
+		/*
+		 * Below are thread safe ways that the clientConnectionHandler 
+		 * uses to communicate with the serverConnectionHandler
+		 */
 
 		public synchronized void setDestination(String dest) {
 			destination = dest;
 		}
 		
+		//Check to see if the get received contains the same destination as currently set
 		public synchronized boolean destinationEqualityCheck(String check){
 			return check.equalsIgnoreCase(destination);
 		}
 		
+		//A thread safe way to take the top element of the messagesToClient List<String>
 		public synchronized String removeTopMessage() {
 			if (messagesToClient.isEmpty()) {
 				return "";
@@ -280,7 +258,8 @@ public class ProxyApp {
 				return messagesToClient.remove(0);
 			}
 		}
-
+		
+		//A thread-safe way to add messages to the messagesFromClient List<String>
 		public synchronized void addMessageToList(String message) {
 			messagesFromClient.add(message);
 		}	
@@ -326,26 +305,23 @@ public class ProxyApp {
 				System.out.println("Specify it in the form of ProxyApp <port>");
 				arg1=defPort;
 			}
+			//Instantiate the proxy on the specified port
 			ProxyApp proxy = new ProxyApp(arg1);
+			//Have the proxy process spawn the clientConnectionHandeler 
 			ClientConnectionHandler clientHandeler = proxy.new ClientConnectionHandler();
+			//move that clientHandler to a new thread spawned from the proxy process
 			Thread clientThread = new Thread(clientHandeler);
+			//Start the clientThread (which means that it runs the run methods associated with that thread)
 			clientThread.start();
+			//Do the same with the serverConnectionHandeler
 			ServerConnectionHandler serverHandeler = proxy.new ServerConnectionHandler();
 			Thread serverThread = new Thread(serverHandeler);
 			serverThread.start();
+		//catch any errors that might occur, print them out and terminate the server
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 			e.printStackTrace();
 			System.exit(0);
 		}
 	}
-
-	/*
-	 * public void setDestination(DataInputStream in) throws IOException {
-	 * String result = ""; int temp = 0; this.setDestination(in);
-	 * System.out.println("Waiting for destination address"); while(temp!=4){
-	 * temp=in.read(); System.out.println(temp); result+=(char)temp; }
-	 * System.out.println("Address received: "); System.out.println(result);
-	 * this.destination=result; }
-	 */
 }

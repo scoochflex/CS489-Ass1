@@ -3,22 +3,18 @@ import java.io.*;
 import java.lang.*;
 import java.util.regex.*;
 
-class InvalidPortNumberException extends Exception{
-	public InvalidPortNumberException (String message){
-		super(message);
-	}
-}
 
 public class ServerApp {
+	//Socket to manage connection with the currently connected client
+	ServerSocket clientConnect;	
+	
 	// Default port to listen to for incoming clients
-	ServerSocket clientConnect;
-	Socket destConnect;
-	String destination;
-	int port = 3002;
+	int port = 80;
 
-	public ServerApp(int n) throws InvalidPortNumberException{
+	public ServerApp(int n) {
 		if (n < 1 && n > 65535) {
-			throw new InvalidPortNumberException("Invalid port number. A valid port is between 1 and 65535");
+			System.out.println("Invalid port number. A valid port is between 1 and 65535");
+			System.exit(0);
 		}
 		this.port=n;
 		// Try making a ServerSocket to the given port
@@ -43,11 +39,7 @@ public class ServerApp {
 			ServerApp server = new ServerApp(arg1);
 			System.out.println("SimpleServer running on port" + arg1);
 			server.listen();
-		} catch (InvalidPortNumberException e) {
-			System.out.println(e.getMessage());
-			e.printStackTrace();
-			System.exit(0);
-		}catch (IOException e){
+		} catch (IOException e){
 			//System.out.println("Stream was closed before it could be read" + e.getMessage());
 			System.out.println(e.getMessage());
 			e.printStackTrace();
@@ -95,6 +87,11 @@ public class ServerApp {
 				if(!message.isEmpty()){
 					System.out.print("Command received: ");
 					System.out.println(message);
+					//Split based on newline terminator
+					String [] components = message.split("\n");
+					System.out.println("Num lines: " + components.length + " First Line: " + components[0]);
+					//COMMAND PARSEING LODGIC
+					//SEND types of response with specific data
 					String response = "I AM A REPLY MESSAGE";
 					try {
 						clientOut.write(response.length());
@@ -110,24 +107,5 @@ public class ServerApp {
 				}
 			}
 		}	
-	}
-
-	/*public void setDestination(DataInputStream in) throws IOException {
-		String result = "";
-		int temp = 0;
-		this.setDestination(in);
-		System.out.println("Waiting for destination address");
-		while(temp!=4){
-			temp=in.read();
-			System.out.println(temp);
-			result+=(char)temp;
-		}
-		System.out.println("Address received: ");
-		System.out.println(result);
-		this.destination=result;
-	}*/
-
-	public void getCommand(){
-		
 	}
 }

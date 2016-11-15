@@ -214,7 +214,7 @@ public class ProxyApp {
 			boolean responseSent = false;
 			Matcher m;
 			Pattern statusCode = Pattern.compile("[^ ]*\\s([\\d]{3}+)\\s\\w*[^\r\n]");
-			int numLinesCheck = lines.length > 5 ? 5 : lines.length;
+			int numLinesCheck = lines.length > 6 ? 6 : lines.length;
 			for(int i=0; i<numLinesCheck;i++){
 				m=statusCode.matcher(lines[i]);
 				if(m.matches()){
@@ -244,7 +244,7 @@ public class ProxyApp {
 			Matcher m;
 			Pattern requestType = Pattern.compile("(\\w+)\\s([^ ]*).*[\r\n]*");
 			Pattern hostname = Pattern.compile("^[Hh]ost:\\s*(.*)[\r\n]*");
-			int numLinesCheck = lines.length > 5 ? 5 : lines.length;
+			int numLinesCheck = lines.length > 6 ? 6 : lines.length;
 			for(int i=0; i<numLinesCheck;i++){
 				System.out.println("i: " + i + " : " + lines[i]);
 				m = requestType.matcher(lines[i]); 

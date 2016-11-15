@@ -2,8 +2,9 @@ import java.net.*;
 import java.nio.ByteOrder;
 import java.io.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.lang.*;
-import java.util.regex.*;
 
 public class ProxyApp {
 	// Default port to listen to for incoming clients
@@ -171,40 +172,12 @@ public class ProxyApp {
 							}
 							byteEst = clientIn.available();
 						}
-						
 						if(!message.isEmpty()){
-							System.out.println("(Client Thread) Message receieved: " + message);
-							String[] components = message.split("\\s+");
-
-							String request_type = components[0];
-						
-							if(request_type.equalsIgnoreCase("GET")){
-								String hostName = "";
-								//Extract host from GET method
-								for (int i =0; i< components.length;i++){
-									if(components[i].equalsIgnoreCase("host:")){
-										hostName = components[i+1];
-										break;
-									}
-								}
-								System.out.println("(Client Thread) dest receieved: " + hostName);
-								if(!destinationEqualityCheck(hostName)){
-									System.out.println("(Client Thread) Got to connect! Setting dest to Components[1] : " + hostName);
-									setDestination(hostName);
-								}
-								addMessageToList(message);
-							}else if(message.equalsIgnoreCase("End Session")){
-								System.out.println("Ending session with client");
-								setDestination("");
-								clientReq.close();
-								session=false;
-							}
-							else{
-								addMessageToList(message);
-							}
-							message="";
+							System.out.print("(Client Thread) Message receieved: " + message);
+							checkIncomingMessageForHostName(message);
+							addMessageToList(message);
 						}
-						
+						message="";
 						String messageToSend = removeTopMessage();
 						while (messageToSend != "") {
 							System.out.println("(Client Thread) There is a message to be sent to the client : " + messageToSend);
@@ -212,14 +185,15 @@ public class ProxyApp {
 								clientOut.write(messageToSend);
 								clientOut.flush();
 							} catch (Exception e) {
-								System.out.println("Could not send message to the server: " + e.getMessage());
+								System.out.println("(Client Thread) Could not send message to the server: " + e.getMessage());
 								e.printStackTrace();
 								return;
 							}
 							//An OK indicates a that a response containing the desired data has been receieved. 
 							//We will terminate gracefully when possible, and if after SO_TIMEOUT seconds we 
 							//have not been able to close the connection, we forcefully close it
-							if(messageToSend.contains("OK")){
+							
+							if(messageIsResponse(messageToSend)){								
 								session=false;
 								setDestination("");
 								clientReq.close();
@@ -230,10 +204,67 @@ public class ProxyApp {
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
-					System.out.println("(Client Thread) Client at " + destination + " disconnected");
-					
+					System.out.println("(Client Thread) Client at " + destination + " disconnected...");					
 				}
 			}
+		}
+		
+		public boolean messageIsResponse(String message){
+			String [] lines = message.split("\n");
+			boolean responseSent = false;
+			Matcher m;
+			Pattern statusCode = Pattern.compile("[^ ]*\\s([\\d]{3}+)\\s\\w*[^\r\n]");
+			int numLinesCheck = lines.length > 5 ? 5 : lines.length;
+			for(int i=0; i<numLinesCheck;i++){
+				m=statusCode.matcher(lines[i]);
+				if(m.matches()){
+					String code = m.group(1);
+					System.out.println("G1: " + code);
+					int codeNum = Integer.parseInt(code);
+					/* Checking to see if the codeNumber is a success or a failure message
+					 * If so we terminate the connection with the client upon sending the message
+					 * If further redirection is required we (e.g. code in the 300's) 
+					 * we do not mark it as a terminating response message
+					 */
+					if(codeNum<300 || codeNum>400){
+						responseSent=true;
+						break;
+					}					
+				}
+			}			
+			return responseSent;
+		}
+		
+		//This function uses a regular expression to parse the text given and look for a GET message from the client
+		//Upon receiving the GET it extract the hostname and sets destination to this value
+		public void checkIncomingMessageForHostName(String message){
+			String [] lines = message.split("\n");
+			boolean getReceieved = false;
+			String hostName = "";
+			Matcher m;
+			Pattern requestType = Pattern.compile("(\\w+)\\s([^ ]*).*[\r\n]*");
+			Pattern hostname = Pattern.compile("^[Hh]ost:\\s*(.*)[\r\n]*");
+			int numLinesCheck = lines.length > 5 ? 5 : lines.length;
+			for(int i=0; i<numLinesCheck;i++){
+				System.out.println("i: " + i + " : " + lines[i]);
+				m = requestType.matcher(lines[i]); 
+				if(m.matches() && m.group(1).equalsIgnoreCase("GET")){
+					getReceieved = true;
+				}
+				if(getReceieved){
+				m = hostname.matcher(lines[i]);
+					if(m.matches()){
+						hostName = m.group(1);
+					}
+				}
+			 }
+			 if(getReceieved && hostName!=""){
+					System.out.println("(Client Thread) Destination receieved: " + hostName);
+					if(!destinationEqualityCheck(hostName)){
+						System.out.println("(Client Thread) Setting destination to: " + hostName);
+						setDestination(hostName);
+					}
+				}
 		}
 		
 		/*

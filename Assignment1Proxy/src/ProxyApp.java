@@ -38,9 +38,10 @@ public class ProxyApp {
 			//Default port to try to connect to remote resource					
 			int destPort = 80;
 			//Boolean controlling weather or not the server connection handler waits for messages from/to a specified destination
-			Boolean session = false;
+			Boolean session = true;
 			//The current destination is empty until the client receives a GET that specifies a remote location
 			String currentDestination = "";
+			String destName;
 			
 			//Outer loop ensuring that if a session is no longer in place it will wait for a new destination to be set before setting up a connection
 			while(true){
@@ -50,17 +51,24 @@ public class ProxyApp {
 				//Get the destination to be checked by the while
 				currentDestination=getDestination();
 			}
-
+			session=true;
+			destName=currentDestination;
+			if(currentDestination.split(":").length>=2){
+				String [] parts = currentDestination.split(":");
+				destName = parts[0];
+				destPort = Integer.parseInt(parts[1]);						
+			}
 			//Feedback indicating that the server is trying to connect to the destination on the default port
-			System.out.println("(Server Thread) Current destination: " + currentDestination + " the default port: " + destPort + " will be used to establish the connection.");
+			System.out.println("(Server Thread) Current destination: " + destName + " the port: " + destPort + " will be used to establish the connection.");
 			
 				try {
 					//Create a socket based around the desired destination and over the default port
-					destConnect = new Socket(currentDestination, destPort);
+					destConnect = new Socket(destName, destPort);
 					//Get the underlying stream writer for forwarding messages to the destination as they come in from the client
-					OutputStreamWriter destOut = new OutputStreamWriter(destConnect.getOutputStream());
-					
+					OutputStreamWriter destOut = new OutputStreamWriter(destConnect.getOutputStream());					
 					DataInputStream destIn = new DataInputStream(destConnect.getInputStream());
+					
+					while (session) {
 					String messageToSend = removeTopMessage();
 					while (messageToSend != "") {
 						System.out.println("(Server Thread) There is a message waiting to be sent: " + messageToSend);
@@ -77,13 +85,11 @@ public class ProxyApp {
 
 					byte[] b;
 					String message = "";
-					session = true;
-					// Session with client
-					while (session) {
 						// Listen for input from server
 						int byteEst = 0;
 						byteEst = destIn.available();
 						while (byteEst != 0) {
+							System.out.println("Bytes to be read: " + byteEst);
 							b = new byte[byteEst];
 							destIn.readFully(b, 0, byteEst);
 							for(int i =0; i<b.length;i++){
@@ -151,7 +157,7 @@ public class ProxyApp {
 						defPort = clientConnect.getLocalPort();
 					}
 					Socket clientReq = clientConnect.accept();
-					clientReq.setSoTimeout(10);
+					clientReq.setSoLinger(true, 10);
 					System.out.println("(Client Thread) A client has connected");
 					DataInputStream clientIn = new DataInputStream(clientReq.getInputStream());
 					OutputStreamWriter clientOut = new OutputStreamWriter(clientReq.getOutputStream());
@@ -179,8 +185,17 @@ public class ProxyApp {
 						}
 						message="";
 						String messageToSend = removeTopMessage();
+						boolean flagForClose = false;
 						while (messageToSend != "") {
-							System.out.println("(Client Thread) There is a message to be sent to the client : " + messageToSend);
+							if(messageIsResponse(messageToSend)){
+								flagForClose=true;
+								//We sleep to ensure that the requested data has a chance to be send.
+								//Cannot rely on content length to ensure data is received here and sent
+								//Content length is not always sent, therefore sleeping works well for single pages,
+								//this does not scale well when attempting to access multiple pages quickly as you must wait a second
+								Thread.sleep(1000);
+							}
+							System.out.println("(Client Thread) There is a message to be sent to the client:\n" + messageToSend);
 							try {
 								clientOut.write(messageToSend);
 								clientOut.flush();
@@ -189,17 +204,17 @@ public class ProxyApp {
 								e.printStackTrace();
 								return;
 							}
-							//An OK indicates a that a response containing the desired data has been receieved. 
-							//We will terminate gracefully when possible, and if after SO_TIMEOUT seconds we 
-							//have not been able to close the connection, we forcefully close it
-							
-							if(messageIsResponse(messageToSend)){								
-								session=false;
-								setDestination("");
-								clientReq.close();
-								session=false;
-							}
+							/* An OK indicates a that a response containing the desired data has been received. 
+							 * We will terminate gracefully when possible, and if after SO_TIMEOUT seconds we 
+							 * have not been able to close the connection, we forcefully close it
+							 */
 							messageToSend = removeTopMessage();
+						}
+						if(flagForClose){
+							setDestination("");
+							clientReq.close();
+							session=false;
+							System.out.println("Response receieved. Terminating connection with client...");
 						}
 					}
 				} catch (Exception e) {
@@ -213,25 +228,21 @@ public class ProxyApp {
 			String [] lines = message.split("\n");
 			boolean responseSent = false;
 			Matcher m;
-			Pattern statusCode = Pattern.compile("[^ ]*\\s([\\d]{3}+)\\s\\w*[^\r\n]");
-			int numLinesCheck = lines.length > 6 ? 6 : lines.length;
-			for(int i=0; i<numLinesCheck;i++){
-				m=statusCode.matcher(lines[i]);
-				if(m.matches()){
-					String code = m.group(1);
-					System.out.println("G1: " + code);
-					int codeNum = Integer.parseInt(code);
-					/* Checking to see if the codeNumber is a success or a failure message
-					 * If so we terminate the connection with the client upon sending the message
-					 * If further redirection is required we (e.g. code in the 300's) 
-					 * we do not mark it as a terminating response message
-					 */
-					if(codeNum<300 || codeNum>400){
-						responseSent=true;
-						break;
-					}					
-				}
-			}			
+			Pattern statusCode = Pattern.compile("[^ ]+\\s([\\d]{3}+)\\s.+[\r\n]*");
+			m = statusCode.matcher(lines[0]);
+			
+			if(m.matches()){
+				String code = m.group(1);
+				int codeNum = Integer.parseInt(code);
+				/* Checking to see if the codeNumber is a success or a failure message
+				 * If so we terminate the connection with the client upon sending the message
+				 * If further redirection is required we (e.g. code in the 300's) 
+				 * we do not mark it as a terminating response message
+				 */
+				if(codeNum<300 || codeNum>400){
+					responseSent=true;
+				}		
+			}
 			return responseSent;
 		}
 		
@@ -246,7 +257,6 @@ public class ProxyApp {
 			Pattern hostname = Pattern.compile("^[Hh]ost:\\s*(.*)[\r\n]*");
 			int numLinesCheck = lines.length > 6 ? 6 : lines.length;
 			for(int i=0; i<numLinesCheck;i++){
-				System.out.println("i: " + i + " : " + lines[i]);
 				m = requestType.matcher(lines[i]); 
 				if(m.matches() && m.group(1).equalsIgnoreCase("GET")){
 					getReceieved = true;
@@ -293,8 +303,7 @@ public class ProxyApp {
 		//A thread-safe way to add messages to the messagesFromClient List<String>
 		public synchronized void addMessageToList(String message) {
 			messagesFromClient.add(message);
-		}	
-
+		}
 	}
 
 	//The proxy app starts up the main process that will spawn the ClientConnectionHandler and ServerConnectionHandler

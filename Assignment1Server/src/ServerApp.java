@@ -10,7 +10,6 @@ import java.net.SocketException;
 import java.nio.file.Files;
 import java.text.DateFormat;
 import java.util.Date;
-import java.util.Timer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,7 +56,6 @@ public class ServerApp {
 				System.out.println("SimpleServer takes a port as an arguement in the form of ServerApp <portNum>. The default port will be used.");
 			}
 			ServerApp server = new ServerApp(arg1);
-			System.out.println("SimpleServer running on port" + arg1);
 			server.listen();
 		}
 		catch (IOException e){
@@ -79,22 +77,27 @@ public class ServerApp {
 	 * It will also respond to requests using the same http version that was sent with the request. 
 	 */
 	public void listen() throws IOException {
+		//Session flag associated with loop controlling a single session (request and response) with a client
 		Boolean session=false;
+		//Flag ensuring that the server will continue to serve clients after a session has ended
 		Boolean waitForClients=true;
-		while(waitForClients) {
+		//The wait for clients flag can be set to false for a clean shutdown. 
+		while(waitForClients) {			
 			System.out.println("Waiting for incoming clients");
 			Socket clientReq = clientConnect.accept();
 			System.out.println("A client has connected");
+			//If a client has connected we want to start a session with the client
+			session=true;
 			DataInputStream clientIn = new DataInputStream(clientReq.getInputStream());
 			OutputStreamWriter clientOut = new OutputStreamWriter(clientReq.getOutputStream());			
 			byte[] b;
-			String message = "";	
-			session=true;
+			String message = "";
+			
 			//Session with client
+			long start = System.currentTimeMillis();
 			while (session) {
+				long end;
 				boolean messageRead = false;
-				//Listen for input from client
-				//System.out.println("Listening for commands");
 				// Listen for input from client
 				int byteEst = 0;
 				byteEst = clientIn.available();
@@ -114,8 +117,6 @@ public class ServerApp {
 					System.out.print("Command received: ");
 					System.out.println(message);
 					
-//					char [] charsToSend = new char[MAX_CHUNK_SIZE];
-					
 					HttpResponseHeader responseHeader = new HttpResponseHeader();
 
 					//First parsed value is the resource path requested
@@ -128,78 +129,61 @@ public class ServerApp {
 				    if(!fileName.isEmpty()){
 				    	filePath = checkHaveResource(fileName);					    	
 				    }
-				    //If the filePath is empty we haven't found the file
-				    if(!(filePath==null)){
-				    	System.out.println("Requested filepath determined to be: " + filePath.toString());
-				    	if(filePath.canRead()){
-				    		BufferedReader fileReader = new BufferedReader(new FileReader(filePath.toString()));
-//				    		int contentLength = 0;
-//				    		boolean headerWritten = false;
-//				    		boolean chunked = false;
-				    		int character = fileReader.read();
-				    		responseHeader = new HttpResponseHeader(parsedVals[1],200, "OK", Files.probeContentType(filePath.toPath()),filePath.length(), Files.getLastModifiedTime(filePath.toPath()).toString());
-							clientOut.write(responseHeader.toString());
-				    		//Read file into 
-				    		while(character!=-1){				    			
-				    			character=fileReader.read();
-				    			clientOut.write(String.valueOf(((char)character)));
-				    			//File is >10MB so we will write the header
-//				    			if(contentLength>=MAX_CHUNK_SIZE || chunked){
-//				    				chunked=true;
-//				    				System.out.println("File is bigger than 10KB... Size of file is: " + contentLength);
-//				    				if(!headerWritten){
-//							    		responseHeader = new HttpResponseHeader(parsedVals[1],200, "OK", Files.probeContentType(filePath.toPath()),filePath.length(), Files.getLastModifiedTime(filePath.toPath()).toString());
-//							    		System.out.println(responseHeader.toString());
-//										clientOut.write(responseHeader.toString());
-//										clientOut.flush();
-//										headerWritten=true;
-//				    				}
-//				    				clientOut.write(Integer.toHexString(contentLength) + "\r\n");
-//									clientOut.write(charsToSend);
-//					    			clientOut.write("\r\n");
-//									clientOut.flush();
-//				    			}else{
-//				    				System.out.println("File is less than 10KB, sending OK... Size of file is: " + contentLength);
-//						    		responseHeader = new HttpResponseHeader(parsedVals[1],200, "OK", Files.probeContentType(filePath.toPath()), contentLength, Files.getLastModifiedTime(filePath.toPath()).toString());
-//									clientOut.write(responseHeader.toString());									
-//									clientOut.write(charsToSend);				    				
-//									clientOut.flush();
-//				    				break;
-//				    			}
-				    		}
-				    		clientOut.flush();
-//				    		if(chunked){
-//			    				System.out.println("File chunking ending");
-//				    			clientOut.write("0\r\n\r\n");
-//				    			clientOut.flush();
-//				    		}
-				    		fileReader.close();
-				    	}else{
-		    				System.out.println("Sending error response 405... Size of file is: ");
-				    		responseHeader = new HttpResponseHeader(parsedVals[1],405, "Method Not Allowed");
+				    try{
+					    //If the filePath is empty we haven't found the file
+					    if(!(filePath==null)){
+					    	System.out.println("Requested filepath determined to be: " + filePath.toString());
+					    	if(filePath.canRead()){
+					    		BufferedReader fileReader = new BufferedReader(new FileReader(filePath.toString()));
+					    		int character = fileReader.read();
+					    		responseHeader = new HttpResponseHeader(parsedVals[1],200, "OK", Files.probeContentType(filePath.toPath()),filePath.length(), Files.getLastModifiedTime(filePath.toPath()).toString());
+								clientOut.write(responseHeader.toString());
+					    		//Read file into 
+					    		while(character!=-1){				    			
+					    			clientOut.write(String.valueOf((char)character));
+					    			character=fileReader.read();
+					    		}
+					    		clientOut.flush();
+					    		fileReader.close();
+					    	}else{
+			    				System.out.println("Sending error response 405... Size of file is: ");
+					    		responseHeader = new HttpResponseHeader(parsedVals[1],405, "Method Not Allowed");
+								clientOut.write(responseHeader.toString());
+								clientOut.flush();
+					    	}
+					    //Generate a response header indicating that we could not find the requested resource and end the session
+					    }else{
+		    				System.out.println("Sending error response 404... Size of file is: ");
+					    	responseHeader = new HttpResponseHeader(parsedVals[1],404, "File Not Found");
 							clientOut.write(responseHeader.toString());
 							clientOut.flush();
-				    	}
-				    }else{
-	    				System.out.println("Sending error response 404... Size of file is: ");
-				    	responseHeader = new HttpResponseHeader(parsedVals[1],404, "File Not Found");
-						clientOut.write(responseHeader.toString());
-						clientOut.flush();
+					    }
+				    }catch(SocketException e){
+			    	System.out.println("Client disconnedted before all data could be sent");
+			    	messageRead=true;
 				    }
 				    
 				}
-				
+				end = System.currentTimeMillis();
 				message="";
-				if(messageRead){
+				//We continue to keep the session ongoing until we receive a message
+				if(messageRead || (end-start) >=5000){
 					System.out.println("Session ending...");
 					session = false;
 					clientReq.close();					
 				}
 				//While session end
 				}
+		//While(wait for clients end)
 		}
+	//Listen end
 	}
 	
+	/*
+	 * The check have resource function will return the file resource specified by the string passed in
+	 * If the resource could not be found in the /files sub-directory in the serverApp project folder a null value will be returned.
+	 * This null is checked in the calling function (listen) after a message has been received  
+	 */
 	public File checkHaveResource(String filePathWithName){
 		//Strip away file name and append path to the files directory in the server folder if we can
 		int fileNameStartIndex = filePathWithName.lastIndexOf('/');
@@ -217,16 +201,24 @@ public class ServerApp {
 					break;
 				}
 			}
-		}		
+		}
 		return filePath;		
 	}
 	
+	/*
+	 * This function takes in a http header and determines what resource it is requesting
+	 * the version of http the request was sent with. It uses regular expressions to gather 
+	 * these values from the header. It puts all the extracted values into an array in a specific
+	 * order so that they can be easily accessed by the calling function.
+	 * It is intended to be called from the listen method with the request received from 
+	 * the client it is currently in a session with.
+	 */
 	public String [] parseIncomingMessage(String message){
 		String [] lines = message.split("\n");		
 		boolean getReceieved = false;
 		String [] parsedVals = {"","",""};
 		Matcher m;
-		Pattern discardServerName = Pattern.compile("http://\\d+\\.\\d+\\.\\d+\\.\\d+:?\\d*(.*)[\r\n]*");
+		Pattern discardServerName = Pattern.compile("[htf]+p://\\d+\\.\\d+\\.\\d+\\.\\d+:?\\d*(.*)[\r\n]*");
 		Pattern requestTypeP = Pattern.compile("(\\w+)\\s([^ ]*)\\s[A-Za-z]+/(\\d\\.\\d)[\r\n]*");
 		Pattern hostNameP = Pattern.compile("^[Hh]ost:\\s*(.*)[\r\n]*");
 		int numLinesCheck = lines.length > 6 ? 6 : lines.length;
@@ -252,13 +244,15 @@ public class ServerApp {
 				}
 			}
 		}
-//		System.out.println("Host name receieved: " + parsedVals[2] + " Actual Name: " + clientConnect.getInetAddress().getHostAddress());
-		//Ensure that the message was meant for us...
-//		if(parsedVals[2].equalsIgnoreCase(clientConnect.getInetAddress().getHostAddress())){
 			return parsedVals;
-//		}
 	}
-	//Class to store and create response header as a string
+	
+	/*
+	 * The HttpResponseHeader class is used to store and create response header as a string
+	 * it formats these values into a correct response header when the toString method is called.
+	 * It is used in listen to generate a response based on weather or not a value is found.
+	 * 
+	 */
 	public class HttpResponseHeader{
 		//Status line header data
 		String method;
@@ -267,7 +261,6 @@ public class ServerApp {
 		//Entity header data
 		String contentType;
 		long contentLength;
-		boolean transferEncodeing;
 		String lastModified;
 		
 		public HttpResponseHeader(){			
@@ -278,11 +271,6 @@ public class ServerApp {
 			code = Code;
 			method = Method;
 			contentType =ContentType;
-			if(ContentLength==0){
-				transferEncodeing=true;
-			}else{
-				transferEncodeing=false;
-			}
 			contentLength = ContentLength;
 			lastModified = LastModified;
 		}
@@ -296,20 +284,24 @@ public class ServerApp {
 			lastModified = "";
 		}
 		
+		/* This toString function inserts the classes values into the correct places
+		 * and generates required information for the http response header
+		 * It returns the formatted response as a string
+		 */
 		public String toString(){
 			String header="";
 			//Status line in header
-			header+="HTTP/"+httpVer + " " + code + " " + method + "\n";
+			header+="HTTP/"+httpVer + " " + code + " " + method + "\r\n";
 			//General and response header data automatically gathered
 			Date date = new Date();			
-			header+="Date: " + DateFormat.getDateInstance().format(date)+ "\n";
-			header+="Server: " +  System .getProperty("os.name")+ "\n";
-//			header+="Accept-Ranges: bytes\n";
+			header+="Date: " + DateFormat.getDateInstance().format(date)+ "\r\n";
+			header+="Server: " +  System .getProperty("os.name")+ "\r\n";
+			header+="Accept-Ranges: bytes\r\n";
 			//Entity header lines
-			header+=contentType.isEmpty() ? "" : "Content Type: " + contentType + "\n";
-			header+= transferEncodeing ? "Transfer-Encoding: chunked\n": "";
-			header+=contentLength==0 ? "" : "Content Length: " + contentLength + "\n";
-			header+=lastModified=="" ? "" : "Last Modified: " + lastModified + "\n";
+			header+=contentType.isEmpty() ? "" : "Content Type: " + contentType + "\r\n";
+			header+=contentLength==0 ? "" : "Content Length: " + contentLength + "\r\n";
+			header+=lastModified=="" ? "" : "Last Modified: " + lastModified + "\r\n";
+			header+="\r\n";
 			return header;
 		}
 	}

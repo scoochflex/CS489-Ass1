@@ -1,4 +1,3 @@
-import java.io.IOException;
 import java.util.Scanner;
 /*
  *	This class was created to take in command line arguments
@@ -7,46 +6,60 @@ import java.util.Scanner;
  */
 public class ClientAppInterface {
 	
-	public static void main(String args[]) throws IOException {
-		//Default value for host
-		String host = "127.0.0.1";
-		//Default value for port
-		int port = 3000;
+	public static void main(String args[]) throws Exception {
+		//Variable for address of proxy
+		String host = null;
+		//Variable for port of proxy
+		int port = 0;
 		//arguments are provided using a space as a delimiter	
 		//ensure that there are only 2 arguments before attempting to establish a connection to the specified server and port
 		if (args.length < 2 ) {
-			System.out.println("No address for the proxy server and a port were provided, default values will be used.");
-			System.out.println("You can specify a proxy server address by supplying it as the first argument, you can also supply the desired port if you know iot by passing it in afterwords.");
+			System.out.println("No address for the proxy server or port were provided.");
+			System.out.println("You can specify a proxy server address by supplying\nit as the first argument and a port by supplying it as the second arguemnet delimited by a space.");
+			System.exit(0);
+		}else if(args.length>2){
+			System.out.println("Too many arguments passed in! Please supply only the address and port number of the proxy server.");
+			System.exit(0);
 		}else{
 			//First argument passed in is the host
 			host=args[0];
 			//Try to parse the second argument as an integer
 			try {
 				//Second argument passed in is (should be) the port number
-				port = Integer.parseInt(args[1]);
+				int val = Integer.parseInt(args[1]);
+					if (val < 1 || val > 65535) {
+						System.out.println("Port specified is not valid. Port should be greater than 0 and less than 65535");
+						System.out.println("Client exiting...");
+						System.exit(0);
+						}else{
+						port = val;
+					}
 				}
 				catch (Exception e) {
-					System.out.println("Port specified is not valid: " + e.getMessage());
 					e.printStackTrace();
-					System.out.println("Using default value of : " + port + " instead");
+					System.exit(0);
 				}
 		}
-		//Feedback for the user so they know that the client starts up on port 300
-		System.out.println("Attempting to set up connection to proxy on port: " + port);
+		System.out.println("Connections will be made through the proxy at the address " + host + ":" +port);
 		ClientApp client = new ClientApp(host, port);
 		String request="";
-		String response="";
 		boolean res;
 		Scanner cmd = new Scanner(System.in);
 		System.out.println("Please enter the address of the server you would like to communicate with, type exit to close the application: ");
+		//Loop until we decide to break and shut down the client
 		while(true){
 			request=cmd.nextLine();
-			
-			res = client.connectToDestination(request);
-			if(res){
-				response = client.waitForResponse();
+			if(request.equalsIgnoreCase("Exit")){
+				cmd.close();
+				System.out.println("Client shutting down.");
+				break;
 			}
 			
+			res = client.connectToDestination(request);			
+
+			if(res){
+				client.getResponse();
+			}
 			System.out.println("Please enter the address of the server you would like to communicate with, type exit to close the application: ");
 		}
 	}
